@@ -1,0 +1,7 @@
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\bin\Debug\NocSim.exe.config
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\bin\Debug\NocSim.exe
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\bin\Debug\NocSim.pdb
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\obj\Debug\NocSim.csprojAssemblyReference.cache
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\obj\Debug\NocSim.csproj.CoreCompileInputs.cache
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\obj\Debug\NocSim.exe
+C:\Users\zding\Documents\WorkArea\Fabric\NocSim\NocSim\obj\Debug\NocSim.pdb
