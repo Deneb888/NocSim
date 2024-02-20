@@ -121,9 +121,13 @@ namespace NocSim
 
         public Coordinate Location;
 
+        public Message buffMess;
+
         // public int Id;
 
         public NodeType northNeighbour, southNeighbour, westNeighbour, eastNeighbour;
+
+        int[] history;
 
         public NodeType (int id, int x, int y)
         {
@@ -138,6 +142,10 @@ namespace NocSim
                 Port[i] = new PortType();
                 Port[i].Orient = (Orientation)i;
             }
+
+            buffMess = null;
+
+            history = new int[4];
         }
 
         public void AddNeighbour(ref NodeType node, Orientation orient)
@@ -194,13 +202,21 @@ namespace NocSim
 
         public void Route()
         {
-            for(int i=0; i<4; i++)
+            for (int i = 0; i < 4; i++)
+            {
+                history[i] = 0;
+            }
+
+            for (int i=0; i<4; i++)
             {
                 if(Port[i].Input != null)
                 {
+                    history[i] = 1;
                     RouteMessage_Deflect3(Port[i].Input, i);
                 }
             }
+
+            RouteMessage_Bufferred();
         }
 
         public void RouteMessage_old(Message mess, int porti)
@@ -537,6 +553,7 @@ namespace NocSim
             bool absorbed = false;
             bool need_deflect = false;
             bool dropped = false;
+            bool bufferred = false;
 
             if (offset_x == 0 && offset_y == 0)
                 absorbed = true;
@@ -554,6 +571,7 @@ namespace NocSim
             else
             {
                 if (westNeighbour != null) deflect_orient2 = Orientation.West;
+                else if (eastNeighbour != null) deflect_orient2 = Orientation.East;
             }
 
             if (offset_y > 0)
@@ -569,6 +587,9 @@ namespace NocSim
             else
             {
                 target_orient2 = Orientation.North;
+
+                if (southNeighbour != null) deflect_orient = Orientation.South;
+                else if (northNeighbour != null) deflect_orient = Orientation.North;
             }         
 
             if(target_orient == Orientation.nowhere || Port[(int)target_orient].Output != null)
@@ -595,13 +616,17 @@ namespace NocSim
             {
                 if (deflect_orient == Orientation.nowhere || Port[(int)deflect_orient].Output != null)
                 {
-                    if (deflect_orient2 == Orientation.nowhere)
+                    if (deflect_orient2 == Orientation.nowhere || Port[(int)deflect_orient2].Output != null)
                     {
-                        dropped = true;
-                    }
-                    else if(Port[(int)deflect_orient2].Output != null)
-                    {
-                        dropped = true;
+                        if (buffMess == null)
+                        {
+                            buffMess = mess;
+                            bufferred = true;
+                        }
+                        else
+                        {
+                            dropped = true;
+                        }
                     }
                     else
                     {
@@ -616,7 +641,10 @@ namespace NocSim
             //int jk = 0;
             if(need_deflect && direction == Orientation.nowhere)
             {
-                dropped = true;
+                if (!bufferred)     // should never happen
+                {
+                    dropped = true;
+                }
 
                 // Debug.Assert(direction != Orientation.nowhere);
             }
@@ -641,6 +669,11 @@ namespace NocSim
                 Stat.dropped[mess.Id] = 1;
                 Stat.droploc.Add(Location);
             }
+            else if(bufferred)
+            {
+                string s = "Message " + mess.Id.ToString() + " bufferred at (" + Location.x.ToString() + " " + Location.y.ToString() + ") ";
+                Console.WriteLine(s);
+            }
             else if (!need_deflect)
             {                
                 Debug.Assert(Port[(int)direction].Output == null);
@@ -653,6 +686,7 @@ namespace NocSim
                 string s = "Message " + mess.Id.ToString() + " routed to Node (" + Location.x.ToString() + " " + Location.y.ToString() + ") " + direction.ToString() + "output";
                 Console.WriteLine(s);
             }
+
             else
             {               
                 Port[(int)direction].Output = mess;
@@ -665,6 +699,66 @@ namespace NocSim
             }
 
             Port[porti].Input = null;
+        }
+
+        public void RouteMessage_Bufferred()
+        {
+            if (buffMess == null) return;
+
+            Message mess = buffMess;
+
+            int offset_x = mess.Destination.x - Location.x;
+            int offset_y = mess.Destination.y - Location.y;
+
+            Orientation target_orient = Orientation.nowhere;
+            bool canroute = false;
+            bool absorbed = false;
+
+            if (offset_x > 0)
+            {
+                target_orient = Orientation.East;
+                canroute = true;
+            }
+            else if (offset_x < 0)
+            {
+                target_orient = Orientation.West;
+                canroute = true;
+            }
+            else
+            {
+                if (offset_y > 0)
+                {
+                    target_orient = Orientation.North;
+                    canroute = true;
+                }
+                else if (offset_y < 0)
+                {
+                    target_orient = Orientation.South;
+                    canroute = true;
+                }
+                else
+                {
+                    absorbed = true;    // should never happen
+                }
+            }
+
+            if (Port[(int)target_orient].Output != null)
+                canroute = false;
+
+            if (canroute)
+            {
+                Port[(int)target_orient].Output = mess;
+
+                buffMess = null;
+
+                string s = "Buffer Message " + mess.Id.ToString() + " routed to Node (" + Location.x.ToString() + " " + Location.y.ToString() + ")" + target_orient.ToString() + "output";
+                Console.WriteLine(s);
+            }
+            else
+            {
+                string s = "Buffer Message " + mess.Id.ToString() + " cannot route";
+                Console.WriteLine(s);
+            }
         }
 
         public Orientation DeflectY(int ofst_y)
@@ -892,6 +986,9 @@ namespace NocSim
 
         public void InjectTrafficInd(Random rnd, int id, int nx, int ny, Orientation direction)
         {
+            if (Node[nx, ny].buffMess != null)      // back pressure if buffer not empty
+                return;
+
             int dx, dy;
 
             dx = rnd.Next(NOC.Dim);
@@ -981,8 +1078,6 @@ namespace NocSim
         }
     };
 
-
-
     class Program
     {
         static void Main(string[] args)
@@ -998,8 +1093,13 @@ namespace NocSim
 
             Random rnd = new Random(1);     // seed the rnd to make it repeatable
 
+            int jk;
+
             for (int i=0; i< 80; i++)
             {
+                if (i == 9)
+                    jk = 0;
+
                 if (i < 30)
                 {
                     //myNoc.InjectTrafficR(i * 8);
